@@ -52,21 +52,21 @@ npm run mcp-client -- \
 
 ```
 jules-manager/
-"o"?"? README.md                    # This file
-"o"?"? config.json                  # Shared configuration
-"o"?"? jobs.jsonl                   # Active jobs registry
-"o"?"? events.jsonl                 # Actionable event queue
-"o"?"? docs/
-"'   """?"? architecture.md          # Detailed architecture documentation
-"o"?"? mcp-server/
-"'   "o"?"? jules_mcp_server.ts      # MCP server implementation
-"'   """?"? README.md                # MCP server docs
-"o"?"? src/
-"'   "o"?"? mcp_client.ts            # CLI MCP client helper
-"o"?"? scripts/
-    "o"?"? jules_monitor.ts         # Background poller
-    "o"?"? jules_event_watcher.ts   # Event queue watcher
-    "o"?"? event_handler.ts         # Event handler
+├── README.md                    # This file
+├── config.json                  # Shared configuration
+├── jobs.jsonl                   # Active jobs registry
+├── events.jsonl                 # Actionable event queue
+├── docs/
+│   └── architecture.md          # Detailed architecture documentation
+├── mcp-server/
+│   ├── jules_mcp_server.ts      # MCP server implementation
+│   └── README.md                # MCP server docs
+├── src/
+│   └── mcp_client.ts            # CLI MCP client helper
+└── scripts/
+    ├── jules_monitor.ts         # Background poller
+    ├── jules_event_watcher.ts   # Event queue watcher
+    └── event_handler.ts         # Event handler
 ```
 
 ## File Descriptions
@@ -140,7 +140,7 @@ See `config.json` for all available settings:
 After building the project (`npm run build`), you can use the Jules MCP server with any AI coding tool that supports the MCP stdio protocol.
 
 > **Prerequisites**
-> - Run `npm run build` in the `jules-mpc-ts` directory
+> - Run `npm run build` in the `jules-mcp-ts` directory
 > - Have your `JULES_API_KEY` ready
 
 ---
@@ -155,7 +155,7 @@ In the Amp settings MCP tab, fill in:
 | **Transport** | `stdio` |
 | **Command** | `node` |
 | **Args** | `build/mcp-server/jules_mcp_server.js` |
-| **Cwd** | `/path/to/jules-mpc-ts` |
+| **Cwd** | `/path/to/jules-mcp-ts` |
 | **Env** | `JULES_API_KEY` = `<your-token>` |
 
 Or add to `.ampcoderc` / VS Code settings (`amp.mcpServers`):
@@ -166,7 +166,7 @@ Or add to `.ampcoderc` / VS Code settings (`amp.mcpServers`):
     "jules": {
       "command": "node",
       "args": ["build/mcp-server/jules_mcp_server.js"],
-      "cwd": "/path/to/jules-mpc-ts",
+      "cwd": "/path/to/jules-mcp-ts",
       "env": {
         "JULES_API_KEY": "<your-token>"
       }
@@ -186,7 +186,7 @@ Add to your `cline_mcp_settings.json` or via the Cline MCP settings UI:
   "mcpServers": {
     "jules": {
       "command": "node",
-      "args": ["/absolute/path/to/jules-mpc-ts/build/mcp-server/jules_mcp_server.js"],
+      "args": ["/absolute/path/to/jules-mcp-ts/build/mcp-server/jules_mcp_server.js"],
       "env": {
         "JULES_API_KEY": "<your-token>"
       }
@@ -206,7 +206,7 @@ Add to `kilo_mcp_settings.json` or via the Kilo Code MCP settings UI:
   "mcpServers": {
     "jules": {
       "command": "node",
-      "args": ["/absolute/path/to/jules-mpc-ts/build/mcp-server/jules_mcp_server.js"],
+      "args": ["/absolute/path/to/jules-mcp-ts/build/mcp-server/jules_mcp_server.js"],
       "env": {
         "JULES_API_KEY": "<your-token>"
       }
@@ -226,7 +226,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
   "mcpServers": {
     "jules": {
       "command": "node",
-      "args": ["/absolute/path/to/jules-mpc-ts/build/mcp-server/jules_mcp_server.js"],
+      "args": ["/absolute/path/to/jules-mcp-ts/build/mcp-server/jules_mcp_server.js"],
       "env": {
         "JULES_API_KEY": "<your-token>"
       }
@@ -241,7 +241,7 @@ Add to `~/.codeium/windsurf/mcp_config.json`:
 
 - **Command and args must be separate** — don't put `node script.js` in the command field alone.
 - **Use absolute paths** in `args` if the tool doesn't support a `cwd` field.
-- **On Windows**, use backslashes in paths (e.g., `D:\\projects\\jules-mpc-ts\\build\\mcp-server\\jules_mcp_server.js`).
+- **On Windows**, use backslashes in paths (e.g., `D:\\projects\\jules-mcp-ts\\build\\mcp-server\\jules_mcp_server.js`).
 - Once connected, all [MCP Tools](#mcp-tools) listed above will be available to the AI agent.
 
 ## Architecture

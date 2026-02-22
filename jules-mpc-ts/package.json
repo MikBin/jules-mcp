@@ -1,5 +1,5 @@
 {
-  "name": "jules-mpc-ts",
+  "name": "jules-mcp-ts",
   "version": "1.0.0",
   "description": "An MCP server implementation for orchestrating Google Jules as a remote coding agent from a local coding agent.",
   "type": "module",
