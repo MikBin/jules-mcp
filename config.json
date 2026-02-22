@@ -1,0 +1,12 @@
+{
+  "jobs_path": "jobs.jsonl",
+  "events_path": "events.jsonl",
+  "monitor_state_path": ".monitor_state.json",
+  "watcher_state_path": ".watcher_state.json",
+  "monitor_poll_seconds": 45,
+  "watcher_poll_seconds": 1,
+  "stuck_minutes": 20,
+  "api_base": "https://jules.googleapis.com/v1alpha",
+  "mcp_command": ["node", "build/mcp-server/jules_mcp_server.js"],
+  "event_command": ["node", "scripts/event_handler.js"]
+}

@@ -1,2 +1,16 @@
-jules-mpc-ts/stderr.txt
-jules-mpc-ts/stdout.txt
+# Dependencies
+node_modules/
+
+# Build output
+build/
+
+# Logs
+npm-debug.log*
+stdout.txt
+stderr.txt
+
+# State files
+.monitor_state.json
+.watcher_state.json
+events.jsonl
+jobs.jsonl

@@ -1,7 +1,0 @@
-node_modules/
-build/
-npm-debug.log*
-.monitor_state.json
-.watcher_state.json
-events.jsonl
-jobs.jsonl
