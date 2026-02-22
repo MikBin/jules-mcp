@@ -251,3 +251,10 @@ For detailed architecture documentation, see [docs/architecture.md](docs/archite
 ## Dependencies
 
 This project uses the TypeScript MCP SDK (`@modelcontextprotocol/sdk`) and Zod for schemas. The monitoring scripts are plain Node.js and do not require additional packages.
+
+## Troubleshooting
+
+Common issues and their solutions:
+
+1. If the server fails to start, check that the `JULES_API_KEY` environment variable is set correctly.
+2. If you get connection errors, verify your network can reach the Jules API endpoints.
