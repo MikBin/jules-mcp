@@ -348,6 +348,51 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  "jules_extract_pr_from_session",
+  {
+    title: "Extract PR details from completed session",
+    description:
+      "Extract pull request information from a completed Jules session outputs",
+    inputSchema: {
+      session_id: z.string().describe("The completed Jules session ID"),
+    },
+  },
+  async ({ session_id }) => {
+    const session = await getSession(session_id);
+    const sessionData = session as JsonRecord;
+
+    if (!sessionData.outputs || !Array.isArray(sessionData.outputs)) {
+      return buildToolResponse({
+        error: "No outputs found in session",
+        sessionId: session_id,
+      });
+    }
+
+    const prOutput = (sessionData.outputs as JsonRecord[]).find(
+      (output) => output.pullRequest
+    );
+
+    if (!prOutput) {
+      return buildToolResponse({
+        error: "No pull request found in session outputs",
+        sessionId: session_id,
+      });
+    }
+
+    const pullRequest = prOutput.pullRequest as JsonRecord;
+    return buildToolResponse({
+      pullRequest: {
+        url: pullRequest.url,
+        title: pullRequest.title,
+        description: pullRequest.description,
+      },
+      sessionId: session_id,
+      sessionState: sessionData.state,
+    });
+  }
+);
+
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
