@@ -78,17 +78,36 @@ async function runMcp(
   });
 }
 
-export async function handleQuestion(event: JsonRecord, mcpCommand: MCPCommand): Promise<void> {
-  const jobId = event.job_id ?? "unknown";
+export async function handleQuestion(event: JsonRecord, mcpCommand: MCPCommand, config: JsonRecord): Promise<void> {
+  const sessionId = event.session_id ?? event.job_id ?? "unknown";
   const message = event.message ?? {};
   const content = (message as JsonRecord).content ?? JSON.stringify(message);
+  const state = event.state ?? "";
 
-  console.error(`[QUESTION] Job ${jobId} requires input:`);
+  console.error(`[QUESTION] Session ${sessionId} requires input:`);
+  console.error(`  State: ${state}`);
   console.error(`  ${content}`);
 
   if (mcpCommand.length === 0) {
     console.error("  (No MCP command configured - skipping response)");
     return;
+  }
+
+  // Check if auto-approve is enabled in config
+  const autoApprove = config.auto_approve_plans === true;
+  
+  if (autoApprove && state === "AWAITING_USER_FEEDBACK") {
+    console.error(`  Auto-approving plan for session ${sessionId}...`);
+    try {
+      const result = await runMcp(mcpCommand, "jules_approve_plan", {
+        session_id: sessionId,
+      });
+      console.error(`  Plan approved: ${JSON.stringify(result, null, 2)}`);
+    } catch (error) {
+      console.error(`  Failed to approve plan: ${(error as Error).message}`);
+    }
+  } else {
+    console.error("  Plan approval is manual. Use Cline to call jules_approve_plan when ready.");
   }
 }
 
@@ -166,7 +185,7 @@ async function main(): Promise<number> {
   console.error(`--- Processing ${eventType} event for job ${jobId} ---`);
 
   if (eventType === "question") {
-    await handleQuestion(event, mcpCommand);
+    await handleQuestion(event, mcpCommand, config);
     return 0;
   }
 

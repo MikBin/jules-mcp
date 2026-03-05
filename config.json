@@ -8,5 +8,6 @@
   "stuck_minutes": 20,
   "api_base": "https://jules.googleapis.com/v1alpha",
   "mcp_command": ["node", "build/mcp-server/jules_mcp_server.js"],
-  "event_command": ["node", "scripts/event_handler.js"]
+  "event_command": ["node", "scripts/event_handler.js"],
+  "auto_approve_plans": false
 }
