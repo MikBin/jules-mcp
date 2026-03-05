@@ -13,6 +13,7 @@
     "start": "node build/mcp-server/jules_mcp_server.js",
     "dev": "tsx mcp-server/jules_mcp_server.ts",
     "mcp-client": "tsx src/mcp_client.ts",
+    "jules": "tsx scripts/jules_cli.ts",
     "test": "vitest"
   },
   "dependencies": {
