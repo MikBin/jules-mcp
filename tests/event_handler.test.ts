@@ -46,10 +46,11 @@ describe('event_handler', () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
       const event = { job_id: 'job-1', message: { content: 'Is this correct?' } };
       const mcpCommand = ['node', 'mcp.js'];
+      const config = {};
 
-      await handleQuestion(event, mcpCommand);
+      await handleQuestion(event, mcpCommand, config);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[QUESTION] Job job-1'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[QUESTION] Session job-1 requires input:'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Is this correct?'));
     });
   });
