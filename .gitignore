@@ -14,3 +14,7 @@ stderr.txt
 .watcher_state.json
 events.jsonl
 jobs.jsonl
+.idea/jules-mcp.iml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/workspace.xml
