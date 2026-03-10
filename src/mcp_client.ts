@@ -1,4 +1,7 @@
 import { execFile } from "child_process";
+import { getJulesConfig } from "./utils.js";
+
+const julesConfig = getJulesConfig();
 
 function parseArgs(argv: string[]): {
   command?: string[];
@@ -58,7 +61,11 @@ function callTool(
       command[0],
       command.slice(1),
       {
-        env: process.env,
+        env: {
+          ...process.env,
+          JULES_API_KEY: julesConfig.apiKey,
+          JULES_API_BASE: julesConfig.apiBase,
+        },
       },
       (error, stdout, stderr) => {
         if (error) {

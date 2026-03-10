@@ -1,6 +1,7 @@
 import { promises as fs } from "fs";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+import { getJulesConfig } from "../src/utils.js";
 
 const DEFAULT_API_BASE = "https://jules.googleapis.com/v1alpha";
 const DEFAULT_POLL_SECONDS = 45;
@@ -285,7 +286,8 @@ async function sleep(seconds: number): Promise<void> {
 
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
-  const apiKey = process.env.JULES_API_KEY;
+  const julesConfig = getJulesConfig();
+  const apiKey = julesConfig.apiKey;
   const config = await loadConfig(args.config ?? DEFAULT_CONFIG_PATH);
 
   const jobsPath = args.jobs ?? (config.jobs_path as string | undefined);
@@ -299,6 +301,7 @@ async function main(): Promise<number> {
   const apiBase =
     args.apiBase ??
     (config.api_base as string | undefined) ??
+    julesConfig.apiBase ??
     DEFAULT_API_BASE;
   const stuckMinutes =
     args.stuckMinutes ??

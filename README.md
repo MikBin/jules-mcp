@@ -66,7 +66,7 @@ Create a new Jules coding session for a GitHub repository.
 - `prompt` (string, required): Task description for Jules.
 - `title` (string, optional): Optional session title.
 - `requirePlanApproval` (boolean, optional): Whether to require plan approval before execution.
-- `automationMode` (string, optional): Automation mode, e.g. "AUTO_CREATE_PR".
+- `automationMode` (string, optional): Automation mode. Defaults to `"AUTO_CREATE_PR"` (Jules automatically publishes a pull request upon successful completion). Passing an empty string or alternative mode will override this.
 
 **Usage Example:**
 ```bash
@@ -196,9 +196,32 @@ npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `JULES_API_KEY` | Yes | API key for Jules API authentication (from jules.google.com/settings) |
+| `JULES_API_KEY` | No* | API key for Jules API authentication. |
 | `JULES_API_BASE` | No | Base URL for Jules API (default: https://jules.googleapis.com/v1alpha) |
 | `JULES_CONFIG` | No | Path to config.json (default: config.json) |
+
+*\*Required if not provided via `mcp_config.json`.*
+
+### MCP Configuration File (Recommended)
+
+Jules MCP can automatically discover your API key from standard MCP configuration files used by tools like Antigravity or Cline. It looks for the `JULES_API_KEY` in the `env` section of the `jules-mcp-server` entry in:
+- `~/.gemini/antigravity/mcp_config.json`
+- `~/.cline/mcp_config.json`
+
+Example `mcp_config.json` entry:
+```json
+{
+  "mcpServers": {
+    "jules-mcp-server": {
+      "command": "node",
+      "args": ["/path/to/jules-mcp/build/mcp-server/jules_mcp_server.js"],
+      "env": {
+        "JULES_API_KEY": "your-api-key-here"
+      }
+    }
+  }
+}
+```
 
 ### JSON Configuration
 
@@ -215,9 +238,14 @@ Shared configuration for the background processes is stored in `config.json`. Se
   "stuck_minutes": 20,
   "api_base": "https://jules.googleapis.com/v1alpha",
   "mcp_command": ["node", "build/mcp-server/jules_mcp_server.js"],
-  "event_command": ["node", "scripts/event_handler.js"]
+  "event_command": ["node", "scripts/event_handler.js"],
+  "auto_approve_plans": false
 }
 ```
+
+**Configuration Details:**
+- `auto_approve_plans` (boolean): If `true`, the `event_handler` will automatically call `jules_approve_plan` whenever a session enters the `AWAITING_USER_FEEDBACK` state for a plan approval.
+
 
 ## Project Structure
 

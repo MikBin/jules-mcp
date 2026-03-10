@@ -2,13 +2,15 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { fileURLToPath } from "url";
+import { getJulesConfig } from "../src/utils.js";
 
 const SERVER_NAME = "jules-mcp";
 const SERVER_VERSION = "2.0.0";
 
+const config = getJulesConfig();
 export const DEFAULT_API_BASE = "https://jules.googleapis.com/v1alpha";
-export const API_BASE = process.env.JULES_API_BASE ?? DEFAULT_API_BASE;
-export const API_KEY = process.env.JULES_API_KEY;
+export const API_BASE = config.apiBase ?? DEFAULT_API_BASE;
+export const API_KEY = config.apiKey;
 
 type JsonRecord = Record<string, unknown>;
 type StructuredContent = Record<string, unknown> | undefined;
@@ -197,11 +199,11 @@ server.registerTool(
         source: `sources/github/${owner}/${repo}`,
         githubRepoContext: { startingBranch: branch },
       },
+      automationMode: automationMode ?? "AUTO_CREATE_PR",
     };
     if (title !== undefined) body.title = title;
     if (requirePlanApproval !== undefined)
       body.requirePlanApproval = requirePlanApproval;
-    if (automationMode !== undefined) body.automationMode = automationMode;
     const payload = await createSession(body);
     return buildToolResponse(payload);
   }

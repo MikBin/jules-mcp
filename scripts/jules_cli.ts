@@ -12,6 +12,9 @@
 
 import { execFile } from "child_process";
 import { fileURLToPath } from "url";
+import { getJulesConfig } from "../src/utils.js";
+
+const julesConfig = getJulesConfig();
 
 const MCP_COMMAND = ["node", "build/mcp-server/jules_mcp_server.js"];
 
@@ -33,7 +36,8 @@ function callTool(
       {
         env: {
           ...process.env,
-          JULES_API_KEY: "AQ.Ab8RN6IktFW-zVnLclBkkJWd6TFzfuhMwjcxYWUSWTR2KxXoiw",
+          JULES_API_KEY: julesConfig.apiKey,
+          JULES_API_BASE: julesConfig.apiBase,
         },
       },
       (error, stdout, stderr) => {
