@@ -9,7 +9,7 @@ This server implements the MCP protocol for interacting with Google Jules, an AI
 ## Server Identity
 
 - **Name:** `jules-mcp`
-- **Version:** `1.0.0`
+- **Version:** `2.0.0`
 - **Protocol Version:** `2024-11-05`
 - **Transport:** stdio JSON-RPC
 
@@ -53,7 +53,7 @@ Response:
   "id": 1,
   "result": {
     "protocolVersion": "2024-11-05",
-    "serverInfo": {"name": "jules-mcp", "version": "1.0.0"},
+    "serverInfo": {"name": "jules-mcp", "version": "2.0.0"},
     "capabilities": {"tools": {}}
   }
 }
@@ -93,6 +93,7 @@ Response:
 | `jules_get_activity` | Get a single activity | session_id, activity_id |
 | `jules_list_sources` | List connected repositories | (none required) |
 | `jules_get_source` | Get source details | source_id |
+| `jules_extract_pr_from_session` | Extract PR details from completed session | session_id |
 
 ## Environment Variables
 

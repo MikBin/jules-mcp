@@ -24,16 +24,14 @@ sequenceDiagram
 
     User->>LocalAgent: Submit task
     LocalAgent->>LocalAgent: Analyze and decompose task
-    LocalAgent->>MCP: jules_create_job
-    MCP->>Jules: POST /jobs
-    Jules-->>MCP: job_id
-    MCP-->>LocalAgent: job_id
-    LocalAgent->>MCP: jules_register_job
-    MCP->>Queue: Write to jobs.jsonl
+    LocalAgent->>MCP: jules_create_session
+    MCP->>Jules: POST /sessions
+    Jules-->>MCP: session_id
+    MCP-->>LocalAgent: session_id
 
     Note over Monitor: Runs independently
-    Monitor->>Queue: Read jobs.jsonl
-    Monitor->>Jules: GET /jobs/id - poll status
+    Monitor->>Queue: Read sessions.jsonl
+    Monitor->>Jules: GET /sessions/id - poll status
     Jules-->>Monitor: status + messages
     Monitor->>Monitor: Filter actionable events
     Monitor->>Queue: Write to events.jsonl
@@ -44,16 +42,7 @@ sequenceDiagram
 
     alt Question Event
         LocalAgent->>MCP: jules_send_message
-        MCP->>Jules: POST /jobs/id/messages
-    else Completion Event
-        LocalAgent->>MCP: jules_get_artifacts
-        MCP->>Jules: GET /jobs/id/artifacts
-        LocalAgent->>LocalAgent: Review code
-        LocalAgent->>MCP: jules_merge_pr
-        MCP->>Jules: POST /jobs/id/merge
-    else Error Event
-        LocalAgent->>MCP: jules_request_retry
-        MCP->>Jules: POST /jobs/id/retry
+        MCP->>Jules: POST /sessions/id:sendMessage
     end
 ```
 
@@ -63,12 +52,12 @@ sequenceDiagram
 |-------|-------------|------------|-------------------|
 | 1. Intake | Receive user task | Analyze scope, success criteria | None |
 | 2. Decomposition | Break into Jules-sized work | Create subtasks, define acceptance | None |
-| 3. Dispatch | Create Jules jobs | Call MCP tools, register job IDs | None |
-| 4. Monitoring | Track job progress | **Idle** | Poll Jules API, filter events |
+| 3. Dispatch | Create Jules sessions | Call MCP tools, register session IDs | None |
+| 4. Monitoring | Track session progress | **Idle** | Poll Jules API, filter events |
 | 5. Intervention | Handle questions/stuck | Respond via MCP, update prompts | Detect stuck states |
 | 6. Review | Code review on completion | Fetch artifacts, run tests | None |
 | 7. Merge | Merge PR after CI passes | Call merge API, cleanup | None |
-| 8. Archive | Post-merge cleanup | Close job, update tracking | None |
+| 8. Archive | Post-merge cleanup | Close session, update tracking | None |
 
 ---
 
@@ -78,7 +67,7 @@ sequenceDiagram
 
 #### Server Identity
 - **Name:** `jules-mcp`
-- **Version:** `1.0.0`
+- **Version:** `2.0.0`
 - **Protocol Version:** `2024-11-05`
 - **Transport:** stdio JSON-RPC
 
@@ -86,16 +75,17 @@ sequenceDiagram
 
 | Tool | Description | Parameters | Jules API Endpoint |
 |------|-------------|------------|-------------------|
-| `jules_create_job` | Create a new Jules job | repo, branch, prompt, constraints | POST /jobs |
-| `jules_register_job` | Register job ID with monitor | job_id, jobs_path, metadata | Local file |
-| `jules_get_job` | Fetch job metadata and status | job_id | GET /jobs/{id} |
-| `jules_get_messages` | Fetch messages since cursor | job_id, cursor | GET /jobs/{id}/messages |
-| `jules_send_message` | Send clarification to Jules | job_id, message | POST /jobs/{id}/messages |
-| `jules_get_artifacts` | Get diff/patch/PR URL | job_id | GET /jobs/{id}/artifacts |
-| `jules_request_retry` | Retry or re-run a job | job_id | POST /jobs/{id}:retry |
-| `jules_merge_pr` | Merge PR after CI passes | job_id, payload | POST /jobs/{id}:merge |
-| `jules_cancel_job` | Cancel a running job | job_id | POST /jobs/{id}:cancel |
-| `jules_list_jobs` | List all jobs for a repo | repo, limit | GET /jobs |
+| `jules_create_session` | Create a new Jules session | owner, repo, branch, prompt | POST /sessions |
+| `jules_get_session` | Fetch session metadata and status | session_id | GET /sessions/{id} |
+| `jules_list_sessions` | List all sessions | pageSize, pageToken | GET /sessions |
+| `jules_delete_session` | Delete a session | session_id | DELETE /sessions/{id} |
+| `jules_send_message` | Send a message to Jules | session_id, message | POST /sessions/{id}:sendMessage |
+| `jules_approve_plan` | Approve a pending plan | session_id | POST /sessions/{id}:approvePlan |
+| `jules_list_activities` | List session activities | session_id, pageSize, pageToken | GET /sessions/{id}/activities |
+| `jules_get_activity` | Get a single activity | session_id, activity_id | GET /sessions/{id}/activities/{id} |
+| `jules_list_sources` | List connected repositories | pageSize, pageToken | GET /sources |
+| `jules_get_source` | Get source details | source_id | GET /sources/{id} |
+| `jules_extract_pr_from_session` | Extract PR details from completed session | session_id | GET /sessions/{id} |
 
 #### Authentication
 - Uses `JULES_API_TOKEN` environment variable
@@ -113,7 +103,7 @@ flowchart TB
     subgraph Background Process
         M[Monitor Script]
         S[State File]
-        J[Jobs JSONL]
+        J[Sessions JSONL]
         E[Events JSONL]
     end
 
@@ -126,7 +116,7 @@ flowchart TB
         API[Jules API]
     end
 
-    J -->|Read job IDs| M
+    J -->|Read session IDs| M
     M -->|Poll status| API
     API -->|Response| M
     M -->|Update| S
@@ -141,9 +131,9 @@ flowchart TB
 
 The monitor runs as an independent process with its own token budget:
 
-1. **Read Jobs File:** Load active job IDs from `jobs.jsonl`
-2. **Poll Jules API:** Query each job status at configured interval
-3. **Track State:** Maintain cursor and last-known status per job
+1. **Read Sessions File:** Load active session IDs from `sessions.jsonl`
+2. **Poll Jules API:** Query each session status at configured interval
+3. **Track State:** Maintain cursor and last-known status per session
 4. **Filter Events:** Only emit actionable events
 5. **Write Events:** Append to `events.jsonl`
 
@@ -151,19 +141,19 @@ The monitor runs as an independent process with its own token budget:
 
 | Event Type | Trigger Condition | Data Included |
 |------------|-------------------|---------------|
-| `question` | Jules asks for clarification | job_id, message content |
-| `completed` | Job status = COMPLETED | job_id, status payload |
-| `error` | Job status = FAILED/ERROR | job_id, error details |
-| `stuck` | No progress for N minutes | job_id, last_activity timestamp |
+| `question` | Jules asks for clarification | session_id, message content |
+| `completed` | Session status = COMPLETED | session_id, status payload |
+| `error` | Session status = FAILED/ERROR | session_id, error details |
+| `stuck` | No progress for N minutes | session_id, last_activity timestamp |
 
 ### Event Schema
 
 ```json
 {
   "event": "question|completed|error|stuck",
-  "job_id": "string",
+  "session_id": "string",
   "observed_at": "ISO8601 timestamp",
-  "status": "current job status",
+  "status": "current session status",
   "message": "for question events - the question content",
   "payload": "full API response for context",
   "last_activity": "for stuck events - timestamp of last activity"
@@ -204,7 +194,7 @@ flowchart LR
 jules-manager/
 "o"?"? README.md                    # Quick start guide
 "o"?"? config.json                  # Shared configuration
-"o"?"? jobs.jsonl                   # Active jobs registry
+"o"?"? sessions.jsonl               # Active sessions registry
 "o"?"? events.jsonl                 # Actionable event queue
 "o"?"? docs/
 "'   """?"? architecture.md          # This document
@@ -225,7 +215,7 @@ jules-manager/
 
 ```json
 {
-  "jobs_path": "jules-manager/jobs.jsonl",
+  "sessions_path": "jules-manager/sessions.jsonl",
   "events_path": "jules-manager/events.jsonl",
   "monitor_state_path": "jules-manager/.monitor_state.json",
   "watcher_state_path": "jules-manager/.watcher_state.json",
@@ -254,7 +244,7 @@ A minimal stdio JSON-RPC server that:
 
 A long-running Node.js script that:
 - Loads configuration from config.json
-- Reads active jobs from jobs.jsonl
+- Reads active sessions from sessions.jsonl
 - Polls Jules API at configured interval
 - Maintains state in .monitor_state.json
 - Writes actionable events to events.jsonl
@@ -294,20 +284,13 @@ node scripts/jules_event_watcher.js --command "node scripts/event_handler.js"
 ### Local Agent Workflow
 
 ```typescript
-// In local agent context - creating a job
-const result = await mcpCall("jules_create_job", {
+// In local agent context - creating a session
+const result = await mcpCall("jules_create_session", {
   repo: "owner/repo",
   branch: "feature/new-auth",
   prompt: "Implement OAuth2 authentication"
 });
-const jobId = result.job_id;
-
-// Register for monitoring
-await mcpCall("jules_register_job", {
-  job_id: jobId,
-  jobs_path: "jules-manager/jobs.jsonl",
-  metadata: { task: "OAuth2 implementation" }
-});
+const sessionId = result.session_id;
 ```
 
 ---
@@ -319,7 +302,7 @@ await mcpCall("jules_register_job", {
 | API rate limit | HTTP 429 | Exponential backoff in monitor |
 | Auth failure | HTTP 401 | Log error, emit error event |
 | Network timeout | Request timeout | Retry with backoff, emit error after N retries |
-| Invalid job ID | HTTP 404 | Remove from jobs file, emit error |
+| Invalid session ID | HTTP 404 | Remove from sessions file, emit error |
 | Stuck detection | No status change for N min | Emit stuck event for intervention |
 
 ---
@@ -327,7 +310,7 @@ await mcpCall("jules_register_job", {
 ## 9. Security Considerations
 
 - **API Token:** Stored in environment, never in files
-- **Job Files:** Contain only job IDs and metadata, no secrets
+- **Session Files:** Contain only session IDs and metadata, no secrets
 - **Event Files:** Contain only status data, no sensitive info
 - **MCP Transport:** stdio only, no network exposure
 
@@ -336,7 +319,7 @@ await mcpCall("jules_register_job", {
 ## 10. Future Enhancements
 
 1. **Webhook Support:** If Jules adds webhooks, replace polling with push
-2. **Multi-repo Support:** Aggregate jobs across repositories
-3. **Priority Queue:** Allow job prioritization in monitor
+2. **Multi-repo Support:** Aggregate sessions across repositories
+3. **Priority Queue:** Allow session prioritization in monitor
 4. **Metrics Dashboard:** Expose Prometheus metrics for monitoring
 5. **Distributed Mode:** Support multiple monitor instances with coordination
