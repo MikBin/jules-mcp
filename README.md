@@ -1,4 +1,4 @@
-# Jules Manager (TypeScript)
+# Jules Manager (TypeScript) (Server Version 2.0.0)
 
 An MCP server implementation for orchestrating Google Jules as a remote coding agent from a local coding agent. The system handles the full lifecycle: task decomposition, API-based dispatch to Jules, asynchronous status monitoring, intervention handling, code review, and PR merging.
 
