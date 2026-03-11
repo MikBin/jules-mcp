@@ -17,6 +17,7 @@ export function getJulesConfig(): { apiKey?: string; apiBase?: string } {
   const home = os.homedir();
   const configPaths = [
     path.join(home, ".gemini", "antigravity", "mcp_config.json"),
+    path.join(home, ".cline", "cline_mcp_settings.json"),
     path.join(home, ".cline", "mcp_config.json"),
   ];
 
