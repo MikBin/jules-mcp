@@ -280,3 +280,20 @@ Configure the server with standard stdio transport:
 - **Command**: `node`
 - **Args**: `/absolute/path/to/jules-mcp/build/mcp-server/jules_mcp_server.js`
 - **Env**: `JULES_API_KEY` = `<your-token>`
+
+## Agent Discovery & API Visibility
+
+When the Jules MCP server is installed as an MCP server for tools such as **Cline**, **Kilo Code**, **Amp**, or **Windsurf**, those agents do **not** embed any Jules API credentials. Instead they:
+
+* Look for a standard MCP configuration file (`~/.gemini/antigravity/mcp_config.json` or `~/.cline/mcp_config.json`).  
+* If the file contains an entry for `jules-mcp-server`, the `env` section is merged into the process environment, exposing `JULES_API_KEY` and optionally `JULES_API_BASE`.  
+* If no config file is found, the agents fall back to the environment variables `JULES_API_KEY` / `JULES_API_BASE` that you export in your shell before launching the server.
+
+Because the credentials are supplied **at runtime**, they are never baked into the production bundle (`build/…`). The bundle only contains the compiled JavaScript code that talks to the Jules API; the actual API key lives outside the repository and is therefore safe to share the built artifact without leaking secrets.
+
+### Visibility
+
+* **Inside the repository** – the README and `config.json` document the required environment variables and the optional `auto_approve_plans` flag.
+* **Outside the repository** – any process that runs the MCP server (including third‑party agents) can discover the credentials via the MCP config mechanism described above. No additional network request is needed; the key is read locally before the server starts.
+
+This design ensures that the API information is **discoverable by any MCP‑compatible client** while remaining **private** to the host environment.
