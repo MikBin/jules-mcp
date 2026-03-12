@@ -270,7 +270,9 @@ jules-mcp/
 
 ## Integration with AI Coding Tools
 
-After building the project (`npm run build`), you can use the Jules MCP server with any AI coding tool that supports the MCP stdio protocol (such as Amp, Cline, Kilo Code, Windsurf, etc.).
+After building the project (`npm run build`), you can use the Jules MCP server with any AI coding tool that supports the MCP stdio protocol (such as Amp, Cline, Kilo Code, Windsurf, etc.). 
+
+For AI agents and easier discovery, see [llms-installation.md](./llms-installation.md).
 
 > **Prerequisites**
 > - Run `npm run build` in the project root directory

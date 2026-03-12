@@ -4,7 +4,14 @@
   "description": "An MCP server implementation for orchestrating Google Jules as a remote coding agent from a local coding agent.",
   "type": "module",
   "license": "MIT",
-  "private": true,
+  "private": false,
+  "files": [
+    "build",
+    "README.md",
+    "LICENSE",
+    "config.json",
+    "llms-installation.md"
+  ],
   "bin": {
     "jules-mcp": "./build/mcp-server/jules_mcp_server.js"
   },
