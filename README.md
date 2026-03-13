@@ -32,25 +32,62 @@ npm install
 The system is composed of three running processes for full functionality:
 
 ```bash
-# Terminal 1: Build the TypeScript MCP server
+# Terminal 1: Build the TypeScript project
 npm run build
 
 # Terminal 2: Start the background monitor
-node scripts/jules_monitor.js --config config.json
+node build/scripts/jules_monitor.js --config config.json
 
 # Terminal 3: Start the event watcher
-node scripts/jules_event_watcher.js --command "node scripts/event_handler.js"
+node build/scripts/jules_event_watcher.js --command "node build/scripts/event_handler.js"
 ```
 
-## CLI Usage (jules_cli)
+## CLI Usage
 
-You can interact with the Jules MCP Server directly from the command line using `jules_cli`. Since the CLI tool internally invokes the built MCP server via `src/mcp_client.ts`, you execute tools like so:
+### jules_cli (Friendly CLI)
+
+The easiest way to interact with Jules from the command line is the `jules_cli` wrapper:
+
+```bash
+npm run jules -- <command> [options]
+```
+
+**Commands:**
+
+| Command   | Description                              | Options |
+|-----------|------------------------------------------|---------|
+| `create`  | Create a new Jules session               | `--owner`, `--repo`, `--branch`, `--prompt`, `--title`, `--require-approval`, `--automation-mode` |
+| `get`     | Get session details                      | `--session-id` |
+| `list`    | List all sessions                        | *(none)* |
+| `approve` | Approve a session's plan                 | `--session-id` |
+| `monitor` | Poll a session until it completes/fails  | `--session-id`, `--interval` (seconds, default 120) |
+
+**Examples:**
+
+```bash
+# Create a session
+npm run jules -- create --owner my-org --repo my-repo --branch main --prompt "Refactor the login module"
+
+# List sessions
+npm run jules -- list
+
+# Get a specific session
+npm run jules -- get --session-id 12345
+
+# Approve a plan
+npm run jules -- approve --session-id 12345
+
+# Monitor a session (polls every 60s)
+npm run jules -- monitor --session-id 12345 --interval 60
+```
+
+### mcp-client (Raw MCP Tool Invocation)
+
+For direct MCP tool calls (useful for scripting or debugging), use the generic MCP client:
 
 ```bash
 npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool <TOOL_NAME> --arguments '<JSON_ARGUMENTS>'
 ```
-
-*(Note: If a global `jules_cli` executable is available in your environment, replace the `npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js` portion with `jules_cli`)*
 
 ## MCP Tools
 
@@ -238,7 +275,7 @@ Shared configuration for the background processes is stored in `config.json`. Se
   "stuck_minutes": 20,
   "api_base": "https://jules.googleapis.com/v1alpha",
   "mcp_command": ["node", "build/mcp-server/jules_mcp_server.js"],
-  "event_command": ["node", "scripts/event_handler.js"],
+  "event_command": ["node", "build/scripts/event_handler.js"],
   "auto_approve_plans": false
 }
 ```
@@ -246,6 +283,14 @@ Shared configuration for the background processes is stored in `config.json`. Se
 **Configuration Details:**
 - `auto_approve_plans` (boolean): If `true`, the `event_handler` will automatically call `jules_approve_plan` whenever a session enters the `AWAITING_USER_FEEDBACK` state for a plan approval.
 
+
+## Testing
+
+Run the test suite with [Vitest](https://vitest.dev/):
+
+```bash
+npm test
+```
 
 ## Project Structure
 
@@ -261,11 +306,18 @@ jules-mcp/
 │   ├── jules_mcp_server.ts      # MCP server implementation
 │   └── README.md                # MCP server docs
 ├── src/
-│   └── mcp_client.ts            # CLI MCP client helper
-└── scripts/
-    ├── jules_monitor.ts         # Background poller
-    ├── jules_event_watcher.ts   # Event queue watcher
-    └── event_handler.ts         # Event handler
+│   ├── mcp_client.ts            # Generic MCP client (raw tool invocation)
+│   └── utils.ts                 # Shared utilities (e.g. formatTimestamp)
+├── scripts/
+│   ├── jules_cli.ts             # Friendly CLI wrapper (npm run jules)
+│   ├── jules_monitor.ts         # Background poller
+│   ├── jules_event_watcher.ts   # Event queue watcher
+│   └── event_handler.ts         # Event handler
+└── tests/
+    ├── mcp_server.test.ts       # MCP server tests
+    ├── monitor.test.ts          # Monitor tests
+    ├── event_handler.test.ts    # Event handler tests
+    └── utils.test.ts            # Utility tests
 ```
 
 ## Integration with AI Coding Tools
