@@ -1,5 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import type { ServerNotification, ServerRequest } from "@modelcontextprotocol/sdk/types.js";
+import type { RequestHandlerExtra } from "@modelcontextprotocol/sdk/shared/protocol.js";
 import { z } from "zod";
 import { fileURLToPath } from "url";
 import { getJulesConfig } from "../src/utils.js";
@@ -18,6 +20,26 @@ type ToolResponse = {
   content: { type: "text"; text: string }[];
   structuredContent?: StructuredContent;
 };
+
+type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
+
+const TERMINAL_STATES = new Set(["COMPLETED", "FAILED"]);
+const DEFAULT_POLL_INTERVAL_MS = 60000;
+const MAX_POLL_INTERVAL_MS = 300000;
+
+async function sendProgress(
+  extra: ToolExtra,
+  progress: number,
+  total: number,
+  message: string
+): Promise<void> {
+  const progressToken = extra._meta?.progressToken;
+  if (!progressToken) return;
+  await extra.sendNotification({
+    method: "notifications/progress",
+    params: { progressToken, progress, total, message },
+  });
+}
 
 export function buildHeaders(): HeadersInit {
   const headers: Record<string, string> = {
@@ -392,6 +414,100 @@ server.registerTool(
       sessionId: session_id,
       sessionState: sessionData.state,
     });
+  }
+);
+
+server.registerTool(
+  "jules_monitor_session",
+  {
+    title: "Monitor a Jules session with progress",
+    description:
+      "Polls a Jules session until it reaches a terminal state (COMPLETED or FAILED), " +
+      "sending MCP progress notifications with the latest activity. " +
+      "Returns the final session state and outputs.",
+    inputSchema: {
+      session_id: z.string().describe("The Jules session ID to monitor"),
+      poll_interval_seconds: z
+        .number()
+        .optional()
+        .describe(
+          "Polling interval in seconds (default: 60, max: 300)"
+        ),
+    },
+  },
+  async ({ session_id, poll_interval_seconds }, extra) => {
+    const intervalMs = Math.min(
+      (poll_interval_seconds ?? DEFAULT_POLL_INTERVAL_MS / 1000) * 1000,
+      MAX_POLL_INTERVAL_MS
+    );
+
+    let pollCount = 0;
+    let lastActivityDesc = "";
+
+    await sendProgress(extra, 0, 100, "Starting session monitoring…");
+
+    while (true) {
+      const session = (await getSession(session_id)) as JsonRecord;
+      const state = String(session.state ?? "UNKNOWN");
+      pollCount++;
+
+      let latestActivityDesc = "";
+      try {
+        const activitiesResponse = (await listActivities(
+          session_id,
+          1
+        )) as JsonRecord;
+        const activities = activitiesResponse.activities as
+          | JsonRecord[]
+          | undefined;
+        if (activities && activities.length > 0) {
+          latestActivityDesc = String(
+            activities[0].description ?? activities[0].state ?? ""
+          );
+        }
+      } catch {
+        // Activities may not be available yet
+      }
+
+      const statusMessage = latestActivityDesc
+        ? `[${state}] ${latestActivityDesc}`
+        : `[${state}]`;
+
+      if (statusMessage !== lastActivityDesc) {
+        await sendProgress(extra, pollCount, pollCount + 1, statusMessage);
+        lastActivityDesc = statusMessage;
+      }
+
+      if (TERMINAL_STATES.has(state)) {
+        await sendProgress(extra, 1, 1, `Session ${state.toLowerCase()}`);
+        return buildToolResponse(session);
+      }
+
+      if (state === "AWAITING_USER_FEEDBACK") {
+        await sendProgress(
+          extra,
+          pollCount,
+          pollCount + 1,
+          "Jules needs input — visit the session to respond"
+        );
+        return buildToolResponse({
+          ...session,
+          _monitor_message:
+            "Session is awaiting user feedback. " +
+            "Use jules_approve_plan or jules_send_message to respond, " +
+            "then call jules_monitor_session again to continue monitoring.",
+        });
+      }
+
+      if (extra.signal.aborted) {
+        return buildToolResponse({
+          ...session,
+          _monitor_message: "Monitoring cancelled by client.",
+        });
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+    }
   }
 );
 
