@@ -64,7 +64,12 @@ Optional variables:
 - `jules_create_session`: Initialize a new coding task.
 - `jules_get_session`: Retrieve state and metadata for a session.
 - `jules_list_sessions`: List active and past sessions.
+- `jules_delete_session`: Delete a Jules session.
 - `jules_send_message`: Provide additional instructions to Jules.
 - `jules_approve_plan`: Approve a proposed coding plan.
 - `jules_list_activities`: View the detailed log of Jules' actions.
+- `jules_get_activity`: Get a single activity by ID for a session.
+- `jules_list_sources`: List available sources (GitHub repositories).
+- `jules_get_source`: Get details for a specific source.
 - `jules_extract_pr_from_session`: Get PR details from a finished session.
+- `jules_monitor_session`: Poll a session until it completes or fails, with progress notifications.
