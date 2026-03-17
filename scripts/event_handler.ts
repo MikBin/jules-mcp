@@ -79,7 +79,7 @@ async function runMcp(
 }
 
 export async function handleQuestion(event: JsonRecord, mcpCommand: MCPCommand, config: JsonRecord): Promise<void> {
-  const sessionId = event.session_id ?? event.job_id ?? "unknown";
+  const sessionId = event.session_id ?? "unknown";
   const message = event.message ?? {};
   const content = (message as JsonRecord).content ?? JSON.stringify(message);
   const state = event.state ?? "";
@@ -112,41 +112,54 @@ export async function handleQuestion(event: JsonRecord, mcpCommand: MCPCommand, 
 }
 
 export async function handleCompleted(event: JsonRecord, mcpCommand: MCPCommand): Promise<void> {
-  const jobId = event.job_id ?? "unknown";
-  const status = event.status ?? "UNKNOWN";
+  const sessionId = event.session_id ?? "unknown";
+  const state = event.state ?? "UNKNOWN";
 
-  console.error(`[COMPLETED] Job ${jobId} finished with status: ${status}`);
+  console.error(`[COMPLETED] Session ${sessionId} finished with state: ${state}`);
 
   if (mcpCommand.length === 0) {
-    console.error("  (No MCP command configured - skipping artifact fetch)");
+    console.error("  (No MCP command configured - skipping PR extraction)");
     return;
   }
 
-  const artifacts = await runMcp(mcpCommand, "jules_get_artifacts", {
-    job_id: jobId,
-  });
-  console.error(`  Artifacts: ${JSON.stringify(artifacts, null, 2)}`);
+  try {
+    const prInfo = await runMcp(mcpCommand, "jules_extract_pr_from_session", {
+      session_id: sessionId,
+    });
+    console.error(`  PR info: ${JSON.stringify(prInfo, null, 2)}`);
+  } catch (error) {
+    console.error(`  Failed to extract PR: ${(error as Error).message}`);
+  }
 }
 
 export async function handleError(event: JsonRecord, mcpCommand: MCPCommand): Promise<void> {
-  const jobId = event.job_id ?? "unknown";
-  const status = event.status ?? "UNKNOWN";
+  const sessionId = event.session_id ?? "unknown";
+  const state = event.state ?? "UNKNOWN";
   const message = event.message ?? "No error details available";
 
-  console.error(`[ERROR] Job ${jobId} failed with status: ${status}`);
+  console.error(`[ERROR] Session ${sessionId} failed with state: ${state}`);
   console.error(`  Error: ${message}`);
 
   if (mcpCommand.length === 0) {
-    console.error("  (No MCP command configured - skipping retry)");
+    console.error("  (No MCP command configured - skipping investigation)");
     return;
+  }
+
+  try {
+    const sessionInfo = await runMcp(mcpCommand, "jules_get_session", {
+      session_id: sessionId,
+    });
+    console.error(`  Session info: ${JSON.stringify(sessionInfo, null, 2)}`);
+  } catch (error) {
+    console.error(`  Failed to get session: ${(error as Error).message}`);
   }
 }
 
 export async function handleStuck(event: JsonRecord, mcpCommand: MCPCommand): Promise<void> {
-  const jobId = event.job_id ?? "unknown";
+  const sessionId = event.session_id ?? "unknown";
   const lastActivity = event.last_activity ?? "unknown";
 
-  console.error(`[STUCK] Job ${jobId} appears stuck`);
+  console.error(`[STUCK] Session ${sessionId} appears stuck`);
   console.error(`  Last activity: ${lastActivity}`);
 
   if (mcpCommand.length === 0) {
@@ -154,8 +167,14 @@ export async function handleStuck(event: JsonRecord, mcpCommand: MCPCommand): Pr
     return;
   }
 
-  const jobInfo = await runMcp(mcpCommand, "jules_get_job", { job_id: jobId });
-  console.error(`  Job info: ${JSON.stringify(jobInfo, null, 2)}`);
+  try {
+    const sessionInfo = await runMcp(mcpCommand, "jules_get_session", {
+      session_id: sessionId,
+    });
+    console.error(`  Session info: ${JSON.stringify(sessionInfo, null, 2)}`);
+  } catch (error) {
+    console.error(`  Failed to get session: ${(error as Error).message}`);
+  }
 }
 
 function parseMcpCommand(configValue: unknown): MCPCommand {
@@ -181,8 +200,8 @@ async function main(): Promise<number> {
   const mcpCommand = parseMcpCommand(config.mcp_command);
 
   const eventType = event.event ?? "unknown";
-  const jobId = event.job_id ?? "unknown";
-  console.error(`--- Processing ${eventType} event for job ${jobId} ---`);
+  const sessionId = event.session_id ?? "unknown";
+  console.error(`--- Processing ${eventType} event for session ${sessionId} ---`);
 
   if (eventType === "question") {
     await handleQuestion(event, mcpCommand, config);
