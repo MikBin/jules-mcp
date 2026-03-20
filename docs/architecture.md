@@ -141,9 +141,9 @@ The monitor runs as an independent process with its own token budget:
 
 | Event Type | Trigger Condition | Data Included |
 |------------|-------------------|---------------|
-| `question` | Jules asks for clarification | session_id, message content |
-| `completed` | Session status = COMPLETED | session_id, status payload |
-| `error` | Session status = FAILED/ERROR | session_id, error details |
+| `question` | Session state = AWAITING_USER_FEEDBACK or question detected in activity | session_id, state, payload |
+| `completed` | Session state = COMPLETED | session_id, state, payload |
+| `error` | Session state = FAILED or API error | session_id, state/message |
 | `stuck` | No progress for N minutes | session_id, last_activity timestamp |
 
 ### Event Schema
@@ -153,8 +153,8 @@ The monitor runs as an independent process with its own token budget:
   "event": "question|completed|error|stuck",
   "session_id": "string",
   "observed_at": "ISO8601 timestamp",
-  "status": "current session status",
-  "message": "for question events - the question content",
+  "state": "current session state (e.g. COMPLETED, FAILED, AWAITING_USER_FEEDBACK)",
+  "message": "for error events - the error details",
   "payload": "full API response for context",
   "last_activity": "for stuck events - timestamp of last activity"
 }
@@ -261,8 +261,9 @@ A file-tailing script that:
 The event handler that:
 - Reads JULES_EVENT from environment
 - Routes to appropriate handler based on event type
-- Invokes MCP tools for Jules interaction
-- Returns control to the local agent main context
+- Uses `session_id` consistently (matching the monitor's event schema)
+- Invokes MCP tools (`jules_approve_plan`, `jules_get_session`, `jules_extract_pr_from_session`) for Jules interaction
+- Auto-approves plans when `auto_approve_plans` is enabled in config
 
 ---
 
