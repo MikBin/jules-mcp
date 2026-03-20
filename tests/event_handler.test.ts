@@ -44,29 +44,29 @@ describe('event_handler', () => {
   describe('handleQuestion', () => {
     it('should log question details', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const event = { job_id: 'job-1', message: { content: 'Is this correct?' } };
+      const event = { session_id: 'sess-1', message: { content: 'Is this correct?' } };
       const mcpCommand = ['node', 'mcp.js'];
       const config = {};
 
       await handleQuestion(event, mcpCommand, config);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[QUESTION] Session job-1 requires input:'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[QUESTION] Session sess-1 requires input:'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Is this correct?'));
     });
   });
 
   describe('handleCompleted', () => {
-    it('should call jules_get_artifacts and log artifacts', async () => {
+    it('should call jules_extract_pr_from_session and log PR info', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const event = { job_id: 'job-1', status: 'COMPLETED' };
+      const event = { session_id: 'sess-1', state: 'COMPLETED' };
       const mcpCommand = ['node', 'mcp.js'];
 
-      const artifacts = { diff: 'some-diff' };
-      mockExecFile(artifacts);
+      const prInfo = { pullRequest: { url: 'https://github.com/a/b/pull/1' } };
+      mockExecFile(prInfo);
 
       await handleCompleted(event, mcpCommand);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[COMPLETED] Job job-1'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[COMPLETED] Session sess-1 finished with state: COMPLETED'));
       // Verify runMcp called execFile
       expect(execFile).toHaveBeenCalledWith(
         'node',
@@ -74,19 +74,18 @@ describe('event_handler', () => {
         expect.any(Object),
         expect.any(Function)
       );
-      // Verify artifacts logged
-      // Since mockExecFile uses setTimeout, we need to wait for promise resolution?
-      // handleCompleted awaits runMcp, which awaits the callback. So it should be fine.
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('some-diff'));
+      // Verify PR info logged
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('pullRequest'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('https://github.com/a/b/pull/1'));
     });
 
     it('should skip if no MCP command', async () => {
         const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-        const event = { job_id: 'job-1', status: 'COMPLETED' };
+        const event = { session_id: 'sess-1', state: 'COMPLETED' };
 
         await handleCompleted(event, []);
 
-        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('skipping artifact fetch'));
+        expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('skipping PR extraction'));
         expect(execFile).not.toHaveBeenCalled();
     });
   });
@@ -94,28 +93,28 @@ describe('event_handler', () => {
   describe('handleError', () => {
     it('should log error details', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const event = { job_id: 'job-1', status: 'FAILED', message: 'Something broke' };
+      const event = { session_id: 'sess-1', state: 'FAILED', message: 'Something broke' };
       const mcpCommand = ['node', 'mcp.js'];
 
       await handleError(event, mcpCommand);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[ERROR] Job job-1'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[ERROR] Session sess-1 failed with state: FAILED'));
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Something broke'));
     });
   });
 
   describe('handleStuck', () => {
-    it('should call jules_get_job and log info', async () => {
+    it('should call jules_get_session and log info', async () => {
       const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const event = { job_id: 'job-1', last_activity: 'timestamp' };
+      const event = { session_id: 'sess-1', last_activity: 'timestamp' };
       const mcpCommand = ['node', 'mcp.js'];
 
-      const jobInfo = { status: 'RUNNING' };
-      mockExecFile(jobInfo);
+      const sessionInfo = { state: 'RUNNING' };
+      mockExecFile(sessionInfo);
 
       await handleStuck(event, mcpCommand);
 
-      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[STUCK] Job job-1'));
+      expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('[STUCK] Session sess-1 appears stuck'));
       expect(execFile).toHaveBeenCalled();
       expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('RUNNING'));
     });
