@@ -1,6 +1,6 @@
 {
   "name": "jules-mcp-ts",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "description": "An MCP server implementation for orchestrating Google Jules as a remote coding agent from a local coding agent.",
   "type": "module",
   "license": "MIT",
