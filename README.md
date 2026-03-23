@@ -381,12 +381,48 @@ For AI agents and easier discovery, see [llms-installation.md](./llms-installati
 
 > **Prerequisites**
 > - Run `npm run build` in the project root directory
-> - Have your `JULES_API_KEY` ready
+> - Have your `JULES_API_KEY` ready (get it from [jules.google.com/settings](https://jules.google.com/settings))
 
 Configure the server with standard stdio transport:
 - **Command**: `node`
 - **Args**: `/absolute/path/to/jules-mcp/build/mcp-server/jules_mcp_server.js`
 - **Env**: `JULES_API_KEY` = `<your-token>`
+
+### Amp (VS Code Extension)
+
+Add the following to your VS Code `settings.json` under `amp.mcpServers`:
+
+```json
+{
+  "amp.mcpServers": {
+    "jules-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/jules-mcp/build/mcp-server/jules_mcp_server.js"],
+      "env": {
+        "JULES_API_KEY": "<YOUR_JULES_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+Alternatively, install globally via npx (no need to clone the repo):
+
+```json
+{
+  "amp.mcpServers": {
+    "jules-mcp": {
+      "command": "npx",
+      "args": ["-y", "jules-mcp-ts"],
+      "env": {
+        "JULES_API_KEY": "<YOUR_JULES_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+Reload the VS Code window after updating settings for Amp to pick up the new MCP server.
 
 ## Agent Discovery & API Visibility
 

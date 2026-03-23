@@ -1,6 +1,6 @@
 # Jules Manager MCP Server Installation
 
-This guide provides the necessary information for AI agents (like Cline, Windsurf, or Antigravity) to install and configure the **Jules Manager MCP Server**.
+This guide provides the necessary information for AI agents (like Amp, Cline, Windsurf, or Antigravity) to install and configure the **Jules Manager MCP Server**.
 
 ## Metadata
 - **Name:** jules-mcp
@@ -44,7 +44,41 @@ Optional variables:
 | --- | --- | --- |
 | `JULES_API_BASE` | Base URL for the Jules API. | `https://jules.googleapis.com/v1alpha` |
 
-### MCP Config Section (for mcp_config.json)
+### Amp (VS Code Extension)
+
+Add to your VS Code `settings.json` under `amp.mcpServers`:
+
+```json
+{
+  "amp.mcpServers": {
+    "jules-mcp": {
+      "command": "node",
+      "args": ["/absolute/path/to/jules-mcp/build/mcp-server/jules_mcp_server.js"],
+      "env": {
+        "JULES_API_KEY": "<YOUR_JULES_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+Or via npx (no local clone needed):
+
+```json
+{
+  "amp.mcpServers": {
+    "jules-mcp": {
+      "command": "npx",
+      "args": ["-y", "jules-mcp-ts"],
+      "env": {
+        "JULES_API_KEY": "<YOUR_JULES_API_KEY>"
+      }
+    }
+  }
+}
+```
+
+### Cline / Windsurf / Antigravity (mcp_config.json)
 
 ```json
 {
