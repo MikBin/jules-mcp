@@ -74,3 +74,4 @@ Optional variables:
 - `jules_get_source`: Get details for a specific source.
 - `jules_extract_pr_from_session`: Get PR details from a finished session.
 - `jules_monitor_session`: Poll a session until it completes or fails, with progress notifications.
+- `jules_wait`: Pause execution for a given number of seconds (max 600) to conserve tokens between polling calls.

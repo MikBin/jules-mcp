@@ -30,6 +30,7 @@ const CLARIFICATION_STATES = new Set([
 ]);
 const DEFAULT_POLL_INTERVAL_MS = 60000;
 const MAX_POLL_INTERVAL_MS = 300000;
+const MAX_WAIT_SECONDS = 600;
 const SESSION_PATH_PREFIX = "sessions/";
 const PROJECT_SESSION_PAGE_SIZE = 50;
 const MAX_PROJECT_SESSION_SCAN_PAGES = 20;
@@ -328,6 +329,14 @@ export async function listSources(
 
 export async function getSource(sourceId: string): Promise<unknown> {
   return requestJson(urlJoin(`sources/${sourceId}`));
+}
+
+export async function wait(seconds: number): Promise<void> {
+  if (!Number.isFinite(seconds) || seconds < 0) {
+    throw new Error("seconds must be a non-negative finite number");
+  }
+  const clamped = Math.min(seconds, MAX_WAIT_SECONDS);
+  return new Promise((resolve) => setTimeout(resolve, clamped * 1000));
 }
 
 // --- Response helpers ---
@@ -642,6 +651,30 @@ server.registerTool(
       sessionId: session_id,
       sessionState: sessionData.state,
     });
+  }
+);
+
+server.registerTool(
+  "jules_wait",
+  {
+    title: "Wait for a specified duration",
+    description:
+      "Pause execution for a given number of seconds (max 600). " +
+      "Use between polling calls to conserve context window tokens " +
+      "instead of requiring a separate sleep MCP server.",
+    inputSchema: {
+      seconds: z
+        .number()
+        .describe("Duration to wait in seconds (max 600)"),
+    },
+  },
+  async ({ seconds }) => {
+    const clamped = Math.min(Math.max(seconds, 0), MAX_WAIT_SECONDS);
+    await wait(clamped);
+    return buildCompactToolResponse(
+      `Waited ${clamped} seconds`,
+      { waited: clamped }
+    );
   }
 );
 

@@ -15,6 +15,7 @@ import {
   getActivity,
   listSources,
   getSource,
+  wait,
   API_BASE,
   DEFAULT_API_BASE
 } from '../mcp-server/jules_mcp_server.js';
@@ -326,6 +327,46 @@ describe('jules_mcp_server', () => {
       });
 
       await expect(getSession('invalid-id')).rejects.toThrow('HTTP 404');
+    });
+  });
+
+  describe('wait', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it('should resolve after the specified duration', async () => {
+      const promise = wait(2);
+      vi.advanceTimersByTime(2000);
+      await promise;
+    });
+
+    it('should clamp to MAX_WAIT_SECONDS (600)', async () => {
+      const promise = wait(9999);
+      vi.advanceTimersByTime(600_000);
+      await promise;
+    });
+
+    it('should handle zero seconds', async () => {
+      const promise = wait(0);
+      vi.advanceTimersByTime(0);
+      await promise;
+    });
+
+    it('should reject negative values', async () => {
+      await expect(wait(-5)).rejects.toThrow('non-negative');
+    });
+
+    it('should reject NaN', async () => {
+      await expect(wait(NaN)).rejects.toThrow('non-negative finite');
+    });
+
+    it('should reject Infinity', async () => {
+      await expect(wait(Infinity)).rejects.toThrow('non-negative finite');
     });
   });
 });

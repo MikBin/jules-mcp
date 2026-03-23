@@ -35,8 +35,8 @@ Create a new Jules session for the task. Jules is autonomous - describe what nee
 
 ### 3. Monitor Session
 
-Wait for the session to complete. Check session status periodically using the sleep MCP server to conserve tokens:
-- Use `sleep_mcp` to wait configurable seconds between status checks (recommended: 120 seconds)
+Wait for the session to complete. Check session status periodically using the built-in `jules_wait` tool to conserve tokens:
+- Use `jules_wait` to pause for configurable seconds between status checks (recommended: 120 seconds)
 - For periodic polling, use `jules_check_jules` only (compact `Q/C/F/N` response)
 - If state is `AWAITING_PLAN_APPROVAL`, approve the plan
 - If state is `AWAITING_USER_FEEDBACK`, respond using `jules_send_message` to provide clarification or additional instructions
@@ -45,7 +45,7 @@ Wait for the session to complete. Check session status periodically using the sl
 
 Hard rule: do not use `jules_get_session` for periodic polling. Use it only after an actionable signal (`Q`, `C`, or `F`) when detailed metadata is actually needed.
 
-**Note:** The sleep MCP server (`csBeyp0mcp0sleep` / `github.com/Garoth/sleep-mcp`) helps save context window tokens by avoiding active polling. Configure the wait interval based on expected task duration.
+**Note:** The built-in `jules_wait` tool eliminates the need for a separate sleep MCP server. It pauses execution for a specified number of seconds (max 600), saving context window tokens by avoiding active polling. Configure the wait interval based on expected task duration.
 
 **Clarification Handling:** The local orchestrator should be ready to clarify anything Jules requests when stuck. Use `jules_send_message` to provide answers, context, or guidance as needed.
 
@@ -105,6 +105,7 @@ git pull origin <branch>
 | `jules_list_activities` | List activities for a Jules session |
 | `jules_get_activity` | Get a single activity by ID |
 | `jules_monitor_session` | Poll a session until completion with progress notifications |
+| `jules_wait` | Pause execution for a given number of seconds (max 600) |
 
 ### Sources
 
@@ -155,6 +156,9 @@ git pull origin <branch>
 
 #### jules_delete_session
 - `session_id` (string, required): The Jules session ID
+
+#### jules_wait
+- `seconds` (number, required): Duration to wait in seconds (max 600)
 
 ### Session States
 

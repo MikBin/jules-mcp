@@ -93,7 +93,7 @@ npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool
 
 ## MCP Tools
 
-The Jules MCP server exposes the following 13 tools to manage the lifecycle of Jules sessions.
+The Jules MCP server exposes the following 14 tools to manage the lifecycle of Jules sessions.
 
 ### `jules_create_session`
 Create a new Jules coding session for a GitHub repository.
@@ -253,6 +253,17 @@ Extract pull request information from a completed Jules session outputs.
 npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool jules_extract_pr_from_session --arguments '{"session_id": "sessions/12345"}'
 ```
 
+
+### `jules_wait`
+Pause execution for a specified number of seconds (max 600). Use between polling calls to conserve context window tokens instead of requiring a separate sleep MCP server.
+
+**Parameters:**
+- `seconds` (number, required): Duration to wait in seconds (max 600).
+
+**Usage Example:**
+```bash
+npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool jules_wait --arguments '{"seconds": 120}'
+```
 
 ### `jules_monitor_session`
 Monitor a Jules session with real-time MCP progress notifications. Polls the session until it reaches a terminal state (`COMPLETED` or `FAILED`), sending `notifications/progress` messages back to the client with the latest activity description. If the session enters `AWAITING_USER_FEEDBACK`, the tool returns early so the caller can respond with `jules_approve_plan` or `jules_send_message` and then resume monitoring.

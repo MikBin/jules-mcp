@@ -95,6 +95,7 @@ Response:
 | `jules_list_sources` | List connected repositories | (none required) |
 | `jules_get_source` | Get source details | source_id |
 | `jules_extract_pr_from_session` | Extract PR details from completed session | session_id |
+| `jules_wait` | Pause execution for a given number of seconds (max 600) | seconds |
 
 ### Minimal Polling Tool
 
