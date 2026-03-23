@@ -63,6 +63,7 @@ Optional variables:
 ## Available Tools
 - `jules_create_session`: Initialize a new coding task.
 - `jules_get_session`: Retrieve state and metadata for a session.
+- `jules_check_jules`: Minimal polling status check returning only `Q`, `C`, `F`, or `N`.
 - `jules_list_sessions`: List active and past sessions.
 - `jules_delete_session`: Delete a Jules session.
 - `jules_send_message`: Provide additional instructions to Jules.

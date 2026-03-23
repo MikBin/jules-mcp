@@ -1,20 +1,34 @@
 import { promises as fs } from "fs";
+import { execFile } from "child_process";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
-import { getJulesConfig } from "../src/utils.js";
 
-const DEFAULT_API_BASE = "https://jules.googleapis.com/v1alpha";
 const DEFAULT_POLL_SECONDS = 45;
 const DEFAULT_STUCK_MINUTES = 20;
 const DEFAULT_STATE_PATH = ".monitor_state.json";
 const DEFAULT_CONFIG_PATH = process.env.JULES_CONFIG ?? "jules-manager/config.json";
 
-const ACTIONABLE_STATUSES = new Set(["COMPLETED", "FAILED"]);
+const MCP_TOOL_CHECK_JULES = "jules_check_jules";
+const CHECK_CODE_TO_EVENT: Record<string, "question" | "completed" | "error" | null> = {
+  Q: "question",
+  C: "completed",
+  F: "error",
+  N: null,
+};
 
 type JsonRecord = Record<string, unknown>;
+type MCPCommand = string[];
+
+type CheckCode = "Q" | "C" | "F" | "N";
+
+type CheckResult = {
+  code: CheckCode;
+  state: string;
+  sessionId?: string;
+};
 
 type JobState = {
-  cursor?: string;
+  session_id?: string;
   last_status?: string;
   last_activity?: string;
 };
@@ -83,16 +97,6 @@ export function buildHeaders(apiKey?: string | null): HeadersInit {
   return headers;
 }
 
-async function fetchJson(url: string, apiKey?: string | null): Promise<JsonRecord> {
-  const response = await fetch(url, { headers: buildHeaders(apiKey) });
-  if (!response.ok) {
-    const detail = await response.text();
-    throw new Error(`HTTP ${response.status} for ${url}: ${detail}`);
-  }
-  const text = await response.text();
-  return text ? (JSON.parse(text) as JsonRecord) : {};
-}
-
 export function sessionStatusUrl(apiBase: string, sessionId: string): string {
   return `${apiBase.replace(/\/$/, "")}/sessions/${sessionId}`;
 }
@@ -124,6 +128,129 @@ export function findActionableActivity(activities: JsonRecord[]): JsonRecord | u
   return activities.find(isQuestionActivity);
 }
 
+function parseMcpCommand(configValue: unknown): MCPCommand {
+  if (Array.isArray(configValue)) {
+    return configValue.map(String).filter(Boolean);
+  }
+  if (typeof configValue === "string" && configValue.trim()) {
+    return [configValue.trim()];
+  }
+  return [];
+}
+
+function getJobKey(job: JsonRecord): string {
+  if (typeof job.session_id === "string" && job.session_id.trim()) {
+    return `session:${job.session_id.trim()}`;
+  }
+  const owner = typeof job.owner === "string" ? job.owner.trim() : "";
+  const repo = typeof job.repo === "string" ? job.repo.trim() : "";
+  const branch = typeof job.branch === "string" ? job.branch.trim() : "";
+  if (owner && repo) {
+    return `project:${owner}/${repo}#${branch || "*"}`;
+  }
+  return `invalid:${JSON.stringify(job)}`;
+}
+
+function getCheckArguments(job: JsonRecord): JsonRecord {
+  const sessionId = typeof job.session_id === "string" ? job.session_id.trim() : "";
+  if (sessionId) {
+    return { session_id: sessionId };
+  }
+
+  const owner = typeof job.owner === "string" ? job.owner.trim() : "";
+  const repo = typeof job.repo === "string" ? job.repo.trim() : "";
+  const branch = typeof job.branch === "string" ? job.branch.trim() : "";
+  if (!owner || !repo) {
+    throw new Error(
+      "Each job must include either session_id or owner+repo (optional branch)."
+    );
+  }
+
+  if (branch) {
+    return { owner, repo, branch };
+  }
+  return { owner, repo };
+}
+
+async function runMcp(
+  command: MCPCommand,
+  tool: string,
+  arguments_: JsonRecord
+): Promise<JsonRecord> {
+  return new Promise((resolve, reject) => {
+    const request = {
+      jsonrpc: "2.0",
+      id: "jules-monitor",
+      method: "tools/call",
+      params: { name: tool, arguments: arguments_ },
+    };
+
+    const child = execFile(
+      command[0],
+      command.slice(1),
+      {
+        env: process.env,
+      },
+      (error, stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr.trim() || error.message));
+          return;
+        }
+        const lines = stdout
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean);
+        for (const line of lines) {
+          try {
+            const response = JSON.parse(line) as JsonRecord;
+            if (response.id === "jules-monitor") {
+              resolve((response.result as JsonRecord) ?? {});
+              return;
+            }
+          } catch {
+            continue;
+          }
+        }
+        resolve({});
+      }
+    );
+
+    child.stdin?.write(JSON.stringify(request));
+    child.stdin?.write("\n");
+    child.stdin?.end();
+  });
+}
+
+function parseCheckResult(result: JsonRecord): CheckResult {
+  const structured =
+    result.structuredContent && typeof result.structuredContent === "object"
+      ? (result.structuredContent as JsonRecord)
+      : undefined;
+  const structuredCode =
+    typeof structured?.c === "string" ? structured.c.toUpperCase() : "";
+  const content = Array.isArray(result.content)
+    ? (result.content as JsonRecord[])
+    : [];
+  const contentCodeRaw =
+    content.length > 0 && typeof content[0].text === "string"
+      ? content[0].text.trim().toUpperCase()
+      : "";
+  const parsedCode = (structuredCode || contentCodeRaw || "N").slice(0, 1);
+  const code: CheckCode =
+    parsedCode === "Q" || parsedCode === "C" || parsedCode === "F"
+      ? parsedCode
+      : "N";
+
+  return {
+    code,
+    state: typeof structured?.st === "string" ? structured.st : "UNKNOWN",
+    sessionId:
+      typeof structured?.s === "string" && structured.s.trim()
+        ? structured.s.trim()
+        : undefined,
+  };
+}
+
 export function shouldEmitStuck(
   lastActivity: string | undefined,
   thresholdMinutes: number
@@ -142,98 +269,68 @@ export function shouldEmitStuck(
 export async function monitorOnce(
   jobs: JsonRecord[],
   state: Record<string, JobState>,
-  apiBase: string,
-  apiKey: string | undefined,
+  mcpCommand: MCPCommand,
   eventsPath: string,
   stuckMinutes: number
 ): Promise<void> {
   for (const job of jobs) {
-    const sessionId = String(job.session_id ?? "");
-    if (!sessionId) {
-      continue;
-    }
+    const jobKey = getJobKey(job);
+    const jobState = (state[jobKey] ??= {});
 
-    const jobState = (state[sessionId] ??= {});
-
-    let statusPayload: JsonRecord;
+    let checkArgs: JsonRecord;
     try {
-      statusPayload = await fetchJson(sessionStatusUrl(apiBase, sessionId), apiKey);
+      checkArgs = getCheckArguments(job);
     } catch (error) {
       await appendJsonl(eventsPath, {
         event: "error",
-        session_id: sessionId,
+        session_id: jobState.session_id ?? null,
         observed_at: utcNow(),
         message: (error as Error).message,
       });
       continue;
     }
 
-    const sessionState = statusPayload.state ? String(statusPayload.state) : undefined;
-    if (sessionState && sessionState !== jobState.last_status) {
-      jobState.last_status = sessionState;
-      jobState.last_activity = utcNow();
-    }
-
-    if (sessionState && ACTIONABLE_STATUSES.has(sessionState)) {
-      await appendJsonl(eventsPath, {
-        event: sessionState === "COMPLETED" ? "completed" : "error",
-        session_id: sessionId,
-        state: sessionState,
-        observed_at: utcNow(),
-        payload: statusPayload,
-      });
-      continue;
-    }
-
-    if (sessionState === "AWAITING_USER_FEEDBACK") {
-      await appendJsonl(eventsPath, {
-        event: "question",
-        session_id: sessionId,
-        state: sessionState,
-        observed_at: utcNow(),
-        payload: statusPayload,
-      });
-      jobState.last_activity = utcNow();
-      continue;
-    }
-
-    let activitiesPayload: JsonRecord = {};
+    let checkResult: CheckResult;
     try {
-      activitiesPayload = await fetchJson(
-        sessionActivitiesUrl(apiBase, sessionId, jobState.cursor),
-        apiKey
-      );
+      const rawResult = await runMcp(mcpCommand, MCP_TOOL_CHECK_JULES, checkArgs);
+      checkResult = parseCheckResult(rawResult);
     } catch (error) {
-      activitiesPayload = {};
-    }
-
-    const nextPageToken = activitiesPayload.nextPageToken
-      ? String(activitiesPayload.nextPageToken)
-      : undefined;
-    const activities = Array.isArray(activitiesPayload.activities)
-      ? (activitiesPayload.activities as JsonRecord[])
-      : [];
-    const actionableActivity = findActionableActivity(activities);
-
-    if (nextPageToken) {
-      jobState.cursor = nextPageToken;
-    }
-
-    if (actionableActivity) {
       await appendJsonl(eventsPath, {
-        event: "question",
-        session_id: sessionId,
+        event: "error",
+        session_id: jobState.session_id ?? null,
         observed_at: utcNow(),
-        activity: actionableActivity,
+        message: `jules_check_jules failed: ${(error as Error).message}`,
       });
+      continue;
+    }
+
+    const previousCode = jobState.last_status;
+    const statusChanged = checkResult.code !== previousCode;
+    if (checkResult.sessionId) {
+      jobState.session_id = checkResult.sessionId;
+    }
+
+    if (statusChanged) {
+      jobState.last_status = checkResult.code;
       jobState.last_activity = utcNow();
+    }
+
+    const eventType = CHECK_CODE_TO_EVENT[checkResult.code];
+    if (eventType && statusChanged) {
+      await appendJsonl(eventsPath, {
+        event: eventType,
+        session_id: checkResult.sessionId ?? jobState.session_id ?? null,
+        state: checkResult.state,
+        check_code: checkResult.code,
+        observed_at: utcNow(),
+      });
       continue;
     }
 
     if (shouldEmitStuck(jobState.last_activity, stuckMinutes)) {
       await appendJsonl(eventsPath, {
         event: "stuck",
-        session_id: sessionId,
+        session_id: checkResult.sessionId ?? jobState.session_id ?? null,
         observed_at: utcNow(),
         last_activity: jobState.last_activity ?? null,
       });
@@ -286,8 +383,6 @@ async function sleep(seconds: number): Promise<void> {
 
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
-  const julesConfig = getJulesConfig();
-  const apiKey = julesConfig.apiKey;
   const config = await loadConfig(args.config ?? DEFAULT_CONFIG_PATH);
 
   const jobsPath = args.jobs ?? (config.jobs_path as string | undefined);
@@ -298,11 +393,7 @@ async function main(): Promise<number> {
     args.poll ??
     (config.monitor_poll_seconds as number | undefined) ??
     DEFAULT_POLL_SECONDS;
-  const apiBase =
-    args.apiBase ??
-    (config.api_base as string | undefined) ??
-    julesConfig.apiBase ??
-    DEFAULT_API_BASE;
+  const mcpCommand = parseMcpCommand(config.mcp_command);
   const stuckMinutes =
     args.stuckMinutes ??
     (config.stuck_minutes as number | undefined) ??
@@ -310,6 +401,11 @@ async function main(): Promise<number> {
 
   if (!jobsPath || !eventsPath) {
     console.error("Error: jobs_path and events_path must be provided");
+    return 1;
+  }
+
+  if (mcpCommand.length === 0) {
+    console.error("Error: mcp_command must be configured for monitor polling");
     return 1;
   }
 
@@ -324,7 +420,7 @@ async function main(): Promise<number> {
     try {
       const jobs = await loadJobs(jobsPath);
       if (jobs.length > 0) {
-        await monitorOnce(jobs, state, apiBase, apiKey, eventsPath, stuckMinutes);
+        await monitorOnce(jobs, state, mcpCommand, eventsPath, stuckMinutes);
       }
     } catch (error) {
       await appendJsonl(eventsPath, {

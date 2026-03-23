@@ -2,6 +2,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   buildHeaders,
   urlJoin,
+  normalizeSessionId,
+  compactStatusCodeFromState,
+  findCurrentProjectSession,
   createSession,
   getSession,
   listSessions,
@@ -48,6 +51,83 @@ describe('jules_mcp_server', () => {
     });
   });
 
+  describe('normalizeSessionId', () => {
+    it('should keep bare session IDs unchanged', () => {
+      expect(normalizeSessionId('abc123')).toBe('abc123');
+    });
+
+    it('should strip sessions/ prefix', () => {
+      expect(normalizeSessionId('sessions/abc123')).toBe('abc123');
+    });
+  });
+
+  describe('compactStatusCodeFromState', () => {
+    it('should return Q for clarification states', () => {
+      expect(compactStatusCodeFromState('AWAITING_USER_FEEDBACK')).toBe('Q');
+      expect(compactStatusCodeFromState('AWAITING_PLAN_APPROVAL')).toBe('Q');
+    });
+
+    it('should return terminal codes', () => {
+      expect(compactStatusCodeFromState('COMPLETED')).toBe('C');
+      expect(compactStatusCodeFromState('FAILED')).toBe('F');
+    });
+
+    it('should default to N for non-actionable states', () => {
+      expect(compactStatusCodeFromState('IN_PROGRESS')).toBe('N');
+      expect(compactStatusCodeFromState(undefined)).toBe('N');
+    });
+  });
+
+  describe('findCurrentProjectSession', () => {
+    it('should return the most recent matching project session', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({
+          sessions: [
+            {
+              name: 'sessions/s-old',
+              sourceContext: {
+                source: 'sources/github/mikbin/jules-mcp',
+                githubRepoContext: { startingBranch: 'main' },
+              },
+              updateTime: '2026-03-01T10:00:00Z',
+            },
+            {
+              name: 'sessions/s-new',
+              sourceContext: {
+                source: 'sources/github/mikbin/jules-mcp',
+                githubRepoContext: { startingBranch: 'main' },
+              },
+              updateTime: '2026-03-02T10:00:00Z',
+            },
+            {
+              name: 'sessions/s-other',
+              sourceContext: {
+                source: 'sources/github/other/repo',
+              },
+              updateTime: '2026-03-03T10:00:00Z',
+            },
+          ],
+        }),
+      });
+
+      const result = await findCurrentProjectSession('mikbin', 'jules-mcp', 'main');
+      expect(result).toMatchObject({ name: 'sessions/s-new' });
+    });
+
+    it('should return null when no matching session exists', async () => {
+      fetchMock.mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        text: async () => JSON.stringify({ sessions: [] }),
+      });
+
+      const result = await findCurrentProjectSession('mikbin', 'jules-mcp');
+      expect(result).toBeNull();
+    });
+  });
+
   describe('API wrappers', () => {
     const mockResponse = (data: any, ok = true, status = 200) => {
       fetchMock.mockResolvedValue({
@@ -84,6 +164,17 @@ describe('jules_mcp_server', () => {
         expect.any(Object)
       );
       expect(result).toEqual({ name: 'sessions/s-123', state: 'RUNNING' });
+    });
+
+    it('getSession should accept session path IDs', async () => {
+      mockResponse({ name: 'sessions/s-123', state: 'RUNNING' });
+
+      await getSession('sessions/s-123');
+
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringMatching(/\/sessions\/s-123$/),
+        expect.any(Object)
+      );
     });
 
     it('listSessions should GET /sessions with query params', async () => {

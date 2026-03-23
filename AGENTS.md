@@ -37,10 +37,13 @@ Create a new Jules session for the task. Jules is autonomous - describe what nee
 
 Wait for the session to complete. Check session status periodically using the sleep MCP server to conserve tokens:
 - Use `sleep_mcp` to wait configurable seconds between status checks (recommended: 120 seconds)
+- For periodic polling, use `jules_check_jules` only (compact `Q/C/F/N` response)
 - If state is `AWAITING_PLAN_APPROVAL`, approve the plan
 - If state is `AWAITING_USER_FEEDBACK`, respond using `jules_send_message` to provide clarification or additional instructions
 - If state is `IN_PROGRESS`, continue monitoring (sleep then check again)
 - If state is `COMPLETED` or `FAILED`, proceed to next step
+
+Hard rule: do not use `jules_get_session` for periodic polling. Use it only after an actionable signal (`Q`, `C`, or `F`) when detailed metadata is actually needed.
 
 **Note:** The sleep MCP server (`csBeyp0mcp0sleep` / `github.com/Garoth/sleep-mcp`) helps save context window tokens by avoiding active polling. Configure the wait interval based on expected task duration.
 
@@ -89,6 +92,7 @@ git pull origin <branch>
 |------|-------------|
 | `jules_create_session` | Create a new Jules coding session for a GitHub repository |
 | `jules_get_session` | Fetch session metadata, state, and outputs |
+| `jules_check_jules` | Minimal polling check returning `Q`, `C`, `F`, or `N` |
 | `jules_list_sessions` | List all Jules sessions |
 | `jules_delete_session` | Delete a Jules session |
 | `jules_approve_plan` | Approve the plan for a session awaiting approval |
@@ -128,6 +132,12 @@ git pull origin <branch>
 
 #### jules_get_session
 - `session_id` (string, required): The Jules session ID
+
+#### jules_check_jules
+- `session_id` (string, optional): Check a specific session directly
+- `owner` (string, optional): Repository owner (required if `session_id` is omitted)
+- `repo` (string, optional): Repository name (required if `session_id` is omitted)
+- `branch` (string, optional): Optional branch filter for project-based polling
 
 #### jules_approve_plan
 - `session_id` (string, required): The Jules session ID

@@ -6,6 +6,8 @@ An MCP server implementation for orchestrating Google Jules as a remote coding a
 
 **The local agent must not waste context window tokens on active polling.** A decoupled monitoring mechanism handles polling independently and only triggers the local agent when human-level input or a final review is required.
 
+Background monitor enforcement: periodic polling in `scripts/jules_monitor.ts` is hard-wired to call only `jules_check_jules` (compact `Q/C/F/N` responses). The monitor does not call `jules_get_session` during polling. Detailed session retrieval is reserved for follow-up handling after actionable events.
+
 ## Overview
 
 The Jules MCP server acts as a bridge between a local coding environment and the Google Jules API. It enables you to:
@@ -91,7 +93,7 @@ npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool
 
 ## MCP Tools
 
-The Jules MCP server exposes the following 12 tools to manage the lifecycle of Jules sessions.
+The Jules MCP server exposes the following 13 tools to manage the lifecycle of Jules sessions.
 
 ### `jules_create_session`
 Create a new Jules coding session for a GitHub repository.
@@ -119,6 +121,31 @@ Fetch session metadata, state, and outputs.
 **Usage Example:**
 ```bash
 npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool jules_get_session --arguments '{"session_id": "sessions/12345"}'
+```
+
+### `jules_check_jules`
+Token-saving status check intended for periodic polling. Returns a one-character code to minimize response size and context usage:
+- `Q`: session needs clarification/approval (`AWAITING_USER_FEEDBACK` or `AWAITING_PLAN_APPROVAL`)
+- `C`: session completed
+- `F`: session failed
+- `N`: no action required (in progress, unknown, or no session found)
+
+You can provide either a specific `session_id`, or `owner` + `repo` (optionally `branch`) to resolve the latest session for the current project.
+
+**Parameters:**
+- `session_id` (string, optional): Specific session to check.
+- `owner` (string, optional): GitHub repository owner (required when `session_id` is not provided).
+- `repo` (string, optional): GitHub repository name (required when `session_id` is not provided).
+- `branch` (string, optional): Optional branch filter when checking by project.
+
+**Usage Example (project-scoped):**
+```bash
+npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool jules_check_jules --arguments '{"owner": "mikbin", "repo": "jules-mcp", "branch": "main"}'
+```
+
+**Usage Example (session-scoped):**
+```bash
+npm run mcp-client -- --command node build/mcp-server/jules_mcp_server.js --tool jules_check_jules --arguments '{"session_id": "sessions/12345"}'
 ```
 
 ### `jules_list_sessions`
@@ -296,6 +323,7 @@ Shared configuration for the background processes is stored in `config.json`. Se
 
 **Configuration Details:**
 - `auto_approve_plans` (boolean): If `true`, the `event_handler` will automatically call `jules_approve_plan` whenever a session enters the `AWAITING_USER_FEEDBACK` state for a plan approval.
+- `mcp_command` (string[]): Required by `jules_monitor`. The monitor uses this command to invoke MCP tool `jules_check_jules` for all periodic polling checks.
 
 
 ## Testing

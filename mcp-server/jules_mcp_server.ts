@@ -24,8 +24,17 @@ type ToolResponse = {
 type ToolExtra = RequestHandlerExtra<ServerRequest, ServerNotification>;
 
 const TERMINAL_STATES = new Set(["COMPLETED", "FAILED"]);
+const CLARIFICATION_STATES = new Set([
+  "AWAITING_USER_FEEDBACK",
+  "AWAITING_PLAN_APPROVAL",
+]);
 const DEFAULT_POLL_INTERVAL_MS = 60000;
 const MAX_POLL_INTERVAL_MS = 300000;
+const SESSION_PATH_PREFIX = "sessions/";
+const PROJECT_SESSION_PAGE_SIZE = 50;
+const MAX_PROJECT_SESSION_SCAN_PAGES = 20;
+
+export type CompactCheckCode = "Q" | "C" | "F" | "N";
 
 async function sendProgress(
   extra: ToolExtra,
@@ -81,6 +90,155 @@ export function urlJoin(path: string): string {
   return `${API_BASE.replace(/\/$/, "")}/${normalized}`;
 }
 
+export function normalizeSessionId(sessionId: string): string {
+  const trimmed = sessionId.trim();
+  if (trimmed.startsWith(SESSION_PATH_PREFIX)) {
+    return trimmed.slice(SESSION_PATH_PREFIX.length);
+  }
+  return trimmed;
+}
+
+function getSessionIdFromPayload(session: JsonRecord): string | undefined {
+  if (typeof session.session_id === "string") {
+    return normalizeSessionId(session.session_id);
+  }
+  if (typeof session.id === "string") {
+    return normalizeSessionId(session.id);
+  }
+  if (typeof session.name === "string") {
+    return normalizeSessionId(session.name);
+  }
+  return undefined;
+}
+
+function getSessionSortTimestamp(session: JsonRecord): number {
+  const keys = ["updateTime", "createTime", "startTime"] as const;
+  for (const key of keys) {
+    const value = session[key];
+    if (typeof value !== "string") {
+      continue;
+    }
+    const parsed = Date.parse(value);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
+function matchesProjectSession(
+  session: JsonRecord,
+  expectedSource: string,
+  branch?: string
+): boolean {
+  const sourceContext =
+    session.sourceContext && typeof session.sourceContext === "object"
+      ? (session.sourceContext as JsonRecord)
+      : undefined;
+  const source =
+    typeof sourceContext?.source === "string"
+      ? sourceContext.source
+      : typeof session.source === "string"
+        ? session.source
+        : "";
+  if (source !== expectedSource) {
+    return false;
+  }
+
+  if (!branch) {
+    return true;
+  }
+
+  const githubRepoContext =
+    sourceContext?.githubRepoContext &&
+    typeof sourceContext.githubRepoContext === "object"
+      ? (sourceContext.githubRepoContext as JsonRecord)
+      : undefined;
+  const startingBranch =
+    typeof githubRepoContext?.startingBranch === "string"
+      ? githubRepoContext.startingBranch
+      : "";
+  return startingBranch === branch;
+}
+
+function pickMostRecentSession(sessions: JsonRecord[]): JsonRecord | null {
+  if (sessions.length === 0) {
+    return null;
+  }
+
+  return sessions.reduce((latest, current) => {
+    if (!latest) {
+      return current;
+    }
+    return getSessionSortTimestamp(current) >= getSessionSortTimestamp(latest)
+      ? current
+      : latest;
+  }, sessions[0]);
+}
+
+export function compactStatusCodeFromState(
+  state: string | undefined
+): CompactCheckCode {
+  if (state && CLARIFICATION_STATES.has(state)) {
+    return "Q";
+  }
+  if (state === "COMPLETED") {
+    return "C";
+  }
+  if (state === "FAILED") {
+    return "F";
+  }
+  return "N";
+}
+
+export async function findCurrentProjectSession(
+  owner: string,
+  repo: string,
+  branch?: string
+): Promise<JsonRecord | null> {
+  const expectedSource = `sources/github/${owner}/${repo}`;
+  let pageToken: string | undefined;
+
+  for (let page = 0; page < MAX_PROJECT_SESSION_SCAN_PAGES; page += 1) {
+    const response = (await listSessions(
+      PROJECT_SESSION_PAGE_SIZE,
+      pageToken
+    )) as JsonRecord;
+    const sessions = Array.isArray(response.sessions)
+      ? (response.sessions as JsonRecord[])
+      : [];
+
+    const projectSessions = sessions.filter((session) =>
+      matchesProjectSession(session, expectedSource, branch)
+    );
+    const latest = pickMostRecentSession(projectSessions);
+    if (latest) {
+      return latest;
+    }
+
+    pageToken =
+      typeof response.nextPageToken === "string"
+        ? response.nextPageToken
+        : undefined;
+    if (!pageToken) {
+      break;
+    }
+  }
+
+  return null;
+}
+
+async function ensureSessionHasState(session: JsonRecord): Promise<JsonRecord> {
+  if (typeof session.state === "string") {
+    return session;
+  }
+  const sessionId = getSessionIdFromPayload(session);
+  if (!sessionId) {
+    return session;
+  }
+  return (await getSession(sessionId)) as JsonRecord;
+}
+
 // --- API helpers ---
 
 export async function createSession(payload: JsonRecord): Promise<unknown> {
@@ -92,7 +250,7 @@ export async function createSession(payload: JsonRecord): Promise<unknown> {
 }
 
 export async function getSession(sessionId: string): Promise<unknown> {
-  return requestJson(urlJoin(`sessions/${sessionId}`));
+  return requestJson(urlJoin(`sessions/${normalizeSessionId(sessionId)}`));
 }
 
 export async function listSessions(
@@ -107,22 +265,27 @@ export async function listSessions(
 }
 
 export async function deleteSession(sessionId: string): Promise<unknown> {
-  return requestJson(urlJoin(`sessions/${sessionId}`), { method: "DELETE" });
+  return requestJson(urlJoin(`sessions/${normalizeSessionId(sessionId)}`), {
+    method: "DELETE",
+  });
 }
 
 export async function sendMessage(
   sessionId: string,
   prompt: string
 ): Promise<unknown> {
-  return requestJson(urlJoin(`sessions/${sessionId}:sendMessage`), {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ prompt }),
-  });
+  return requestJson(
+    urlJoin(`sessions/${normalizeSessionId(sessionId)}:sendMessage`),
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ prompt }),
+    }
+  );
 }
 
 export async function approvePlan(sessionId: string): Promise<unknown> {
-  return requestJson(urlJoin(`sessions/${sessionId}:approvePlan`), {
+  return requestJson(urlJoin(`sessions/${normalizeSessionId(sessionId)}:approvePlan`), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({}),
@@ -138,7 +301,9 @@ export async function listActivities(
   if (pageSize !== undefined) params.set("pageSize", String(pageSize));
   if (pageToken) params.set("pageToken", pageToken);
   const query = params.toString() ? `?${params.toString()}` : "";
-  return requestJson(urlJoin(`sessions/${sessionId}/activities${query}`));
+  return requestJson(
+    urlJoin(`sessions/${normalizeSessionId(sessionId)}/activities${query}`)
+  );
 }
 
 export async function getActivity(
@@ -146,7 +311,7 @@ export async function getActivity(
   activityId: string
 ): Promise<unknown> {
   return requestJson(
-    urlJoin(`sessions/${sessionId}/activities/${activityId}`)
+    urlJoin(`sessions/${normalizeSessionId(sessionId)}/activities/${activityId}`)
   );
 }
 
@@ -182,6 +347,16 @@ function buildToolResponse(payload: unknown): ToolResponse {
   return {
     content: [contentItem],
     structuredContent: toStructuredContent(payload),
+  };
+}
+
+function buildCompactToolResponse(
+  message: string,
+  structuredContent?: StructuredContent
+): ToolResponse {
+  return {
+    content: [{ type: "text", text: message }],
+    structuredContent,
   };
 }
 
@@ -243,6 +418,59 @@ server.registerTool(
   async ({ session_id }) => {
     const payload = await getSession(session_id);
     return buildToolResponse(payload);
+  }
+);
+
+server.registerTool(
+  "jules_check_jules",
+  {
+    title: "Check the current Jules session with minimal output",
+    description:
+      "Token-saving status check. Returns a one-letter code: " +
+      "Q (needs clarification), C (completed), F (failed), N (nothing to do). " +
+      "Provide session_id directly or owner/repo to auto-resolve the current project session.",
+    inputSchema: {
+      owner: z.string().optional().describe("GitHub repository owner"),
+      repo: z.string().optional().describe("GitHub repository name"),
+      branch: z
+        .string()
+        .optional()
+        .describe("Optional starting branch filter when checking by project"),
+      session_id: z
+        .string()
+        .optional()
+        .describe("Optional session ID; if provided, owner/repo are ignored"),
+    },
+  },
+  async ({ owner, repo, branch, session_id }) => {
+    let session: JsonRecord | null;
+
+    if (session_id) {
+      session = (await getSession(session_id)) as JsonRecord;
+    } else {
+      if (!owner || !repo) {
+        throw new Error("Provide either session_id or both owner and repo.");
+      }
+      session = await findCurrentProjectSession(owner, repo, branch);
+    }
+
+    if (!session) {
+      return buildCompactToolResponse("N", { c: "N", st: "NO_SESSION" });
+    }
+
+    const hydratedSession = await ensureSessionHasState(session);
+    const state =
+      typeof hydratedSession.state === "string"
+        ? hydratedSession.state
+        : undefined;
+    const code = compactStatusCodeFromState(state);
+    const resolvedSessionId = getSessionIdFromPayload(hydratedSession);
+
+    return buildCompactToolResponse(code, {
+      c: code,
+      st: state ?? "UNKNOWN",
+      ...(resolvedSessionId ? { s: resolvedSessionId } : {}),
+    });
   }
 );
 

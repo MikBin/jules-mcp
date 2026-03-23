@@ -85,6 +85,7 @@ Response:
 |------|-------------|---------------------|
 | `jules_create_session` | Create a new Jules session | owner, repo, branch, prompt |
 | `jules_get_session` | Fetch session metadata and status | session_id |
+| `jules_check_jules` | Minimal status check for polling (`Q/C/F/N`) | session_id OR owner+repo |
 | `jules_list_sessions` | List all sessions | (none required) |
 | `jules_delete_session` | Delete a session | session_id |
 | `jules_send_message` | Send a message to Jules | session_id, message |
@@ -94,6 +95,22 @@ Response:
 | `jules_list_sources` | List connected repositories | (none required) |
 | `jules_get_source` | Get source details | source_id |
 | `jules_extract_pr_from_session` | Extract PR details from completed session | session_id |
+
+### Minimal Polling Tool
+
+Use `jules_check_jules` for low-token polling loops instead of `jules_get_session`.
+
+- Input: either `session_id`, or `owner` + `repo` (optional `branch`) to resolve the latest project session.
+- Output: one-character status code only: `Q`, `C`, `F`, or `N`.
+
+Example:
+
+```bash
+npm run mcp-client -- \
+  --command node build/mcp-server/jules_mcp_server.js \
+  --tool jules_check_jules \
+  --arguments '{"owner": "mikbin", "repo": "jules-mcp", "branch": "main"}'
+```
 
 ## Environment Variables
 
