@@ -25,7 +25,7 @@ export function getJulesConfig(): { apiKey?: string; apiBase?: string } {
     try {
       if (fs.existsSync(configPath)) {
         const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
-        const julesServer = config.mcpServers?.["jules-mcp-server"];
+        const julesServer = config.mcpServers?.["jules-mcp"] || config.mcpServers?.["jules-mcp-server"];
         if (julesServer?.env?.JULES_API_KEY) {
           return {
             apiKey: julesServer.env.JULES_API_KEY,
