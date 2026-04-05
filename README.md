@@ -98,10 +98,12 @@ The Jules MCP server exposes the following 14 tools to manage the lifecycle of J
 ### `jules_create_session`
 Create a new Jules coding session for a GitHub repository.
 
+**Important:** Always use the repository's default branch (`main` or `master`) as the starting branch. Jules automatically creates its own feature branch for each session.
+
 **Parameters:**
 - `owner` (string, required): GitHub repository owner.
 - `repo` (string, required): GitHub repository name.
-- `branch` (string, required): Starting branch name.
+- `branch` (string, required): Starting branch name. **Must be the default branch (`main` or `master`)** - Jules will create its own feature branch.
 - `prompt` (string, required): Task description for Jules.
 - `title` (string, optional): Optional session title.
 - `requirePlanApproval` (boolean, optional): Whether to require plan approval before execution.

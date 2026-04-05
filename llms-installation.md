@@ -95,7 +95,7 @@ Or via npx (no local clone needed):
 ```
 
 ## Available Tools
-- `jules_create_session`: Initialize a new coding task.
+- `jules_create_session`: Initialize a new coding task. **Important:** Always use the repository's default branch (`main` or `master`) as the starting branch. Jules automatically creates its own feature branch for each session.
 - `jules_get_session`: Retrieve state and metadata for a session.
 - `jules_check_jules`: Minimal polling status check returning only `Q`, `C`, `F`, or `N`.
 - `jules_list_sessions`: List active and past sessions.

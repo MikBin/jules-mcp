@@ -25,7 +25,7 @@ Create a new Jules session for the task. Jules is autonomous - describe what nee
 **Required parameters:**
 - `owner`: GitHub repository owner (e.g., "MikBin")
 - `repo`: Repository name (e.g., "jules-mcp")
-- `branch`: Starting branch (e.g., "main")
+- `branch`: **Must be the default branch (`main` or `master`)** - Jules automatically creates its own feature branch for each session
 - `prompt`: Clear task description
 
 **Optional parameters:**
@@ -125,7 +125,7 @@ git pull origin <branch>
 #### jules_create_session
 - `owner` (string, required): GitHub repository owner
 - `repo` (string, required): GitHub repository name
-- `branch` (string, required): Starting branch name
+- `branch` (string, required): **Must be the default branch (`main` or `master`)** - Jules automatically creates its own feature branch
 - `prompt` (string, required): Task description for Jules
 - `title` (string, optional): Session title
 - `requirePlanApproval` (boolean, optional): Require plan approval before execution
