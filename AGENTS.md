@@ -30,13 +30,13 @@ Create a new Jules session for the task. Jules is autonomous - describe what nee
 
 **Optional parameters:**
 - `title`: Session title for identification
-- `requirePlanApproval`: Set to `true` if you want to review before execution
+- `requirePlanApproval`: Set to `true` if you want to review before execution (default: `false` for auto-approval)
 - `automationMode`: Set to `"AUTO_CREATE_PR"` for automatic PR creation on completion
 
 ### 3. Monitor Session
 
 Wait for the session to complete. Check session status periodically using the built-in `jules_wait` tool to conserve tokens:
-- Use `jules_wait` to pause for configurable seconds between status checks (recommended: 120 seconds)
+- Use `jules_wait` to pause for configurable seconds between status checks (recommended: 300 seconds)
 - For periodic polling, use `jules_check_jules` only (compact `Q/C/F/N` response)
 - If state is `AWAITING_PLAN_APPROVAL`, approve the plan
 - If state is `AWAITING_USER_FEEDBACK`, respond using `jules_send_message` to provide clarification or additional instructions
@@ -128,7 +128,7 @@ git pull origin <branch>
 - `branch` (string, required): **Must be the default branch (`main` or `master`)** - Jules automatically creates its own feature branch
 - `prompt` (string, required): Task description for Jules
 - `title` (string, optional): Session title
-- `requirePlanApproval` (boolean, optional): Require plan approval before execution
+- `requirePlanApproval` (boolean, optional): Require plan approval before execution (default: false)
 - `automationMode` (string, optional): Set to `"AUTO_CREATE_PR"` for automatic PR creation
 
 #### jules_get_session
